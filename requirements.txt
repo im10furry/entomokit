@@ -1,0 +1,15 @@
+# Core dependencies (all scripts)
+numpy>=1.24.0
+Pillow>=10.0.0
+tqdm>=4.65.0
+
+# Segmentation scripts (segment.py, synthesize.py)
+torch>=2.0.0
+torchvision>=0.15.0
+opencv-python>=4.8.0
+
+# Image cleaning (clean_figs.py)
+imagehash
+
+# Dataset splitting (split_dataset.py)
+pandas

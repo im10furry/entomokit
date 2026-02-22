@@ -1,0 +1,1 @@
+"""Insect Synthesizer - Source package."""
