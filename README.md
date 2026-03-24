@@ -111,13 +111,13 @@ entomokit segment \
     --out-dir outputs/insects_clean/ \
     --sam3-checkpoint models/sam3_hq_vit_h.pt \
     --segmentation-method sam3 \
-    --annotation-output-format coco
+    --annotation-format coco
 
 # With YOLO annotations and xyxy bbox format
 entomokit segment \
     --input-dir images/ --out-dir outputs/ \
     --segmentation-method otsu \
-    --annotation-output-format yolo \
+    --annotation-format yolo \
     --coco-bbox-format xyxy
 ```
 
@@ -130,7 +130,7 @@ entomokit segment \
 | `--segmentation-method` | `sam3`, `sam3-bbox`, `otsu`, `grabcut` | `sam3` |
 | `--sam3-checkpoint` | SAM3 checkpoint path | Required for sam3/sam3-bbox |
 | `--device` | `auto`, `cpu`, `cuda`, `mps` | `auto` |
-| `--annotation-output-format` | `coco`, `voc`, `yolo` | None |
+| `--annotation-format` | `coco`, `voc`, `yolo` | None |
 | `--coco-bbox-format` | `xywh`, `xyxy` | `xywh` |
 | `--repair-strategy` | `opencv`, `sam3-fill`, `lama` | None |
 | `--threads` | Parallel workers | 8 |
@@ -143,6 +143,8 @@ output_dir/
 │   ├── image_01.png
 │   └── ...
 ```
+
+Note: in COCO mode, EntomoKit writes only `annotations.coco.json` and does not copy original input images into `output_dir/`.
 
 **YOLO/VOC layout:**
 ```
