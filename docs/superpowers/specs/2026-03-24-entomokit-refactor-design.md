@@ -1,6 +1,7 @@
 # entomokit 重构设计文档
 
 **日期**: 2026-03-24  
+**最后更新**: 2026-03-24（补充 segment 注释格式、clean/split-csv/extract-frames 功能扩展、classify CPU 线程控制）  
 **状态**: 已确认，待实现  
 
 ---
@@ -151,15 +152,70 @@ def register(subparsers):
 
 ### 5.1 顶层独立命令
 
-这五个命令的**业务逻辑不变**，只是入口从 `python scripts/xxx.py` 迁移至 `entomokit xxx`。
+这五个命令的业务逻辑基本保留，只是入口从 `python scripts/xxx.py` 迁移至 `entomokit xxx`，部分命令有功能扩展。
 
-| 新命令                      | 对应旧脚本               | 变化                |
-| --------------------------- | ------------------------ | ------------------- |
-| `entomokit segment`         | `scripts/segment.py`     | 仅入口改变          |
-| `entomokit extract-frames`  | `scripts/extract_frames.py` | 仅入口改变       |
-| `entomokit clean`           | `scripts/clean_figs.py`  | 仅入口改变          |
-| `entomokit split-csv`       | `scripts/split_dataset.py` | 入口改变 + 命令改名 |
-| `entomokit synthesize`      | `scripts/synthesize.py`  | 仅入口改变          |
+| 新命令                      | 对应旧脚本               | 变化                              |
+| --------------------------- | ------------------------ | --------------------------------- |
+| `entomokit segment`         | `scripts/segment.py`     | 入口改变 + 注释输出格式对齐 detcli |
+| `entomokit extract-frames`  | `scripts/extract_frames.py` | 入口改变 + `--input-dir` 支持单文件 |
+| `entomokit clean`           | `scripts/clean_figs.py`  | 入口改变 + 新增 `--recursive`      |
+| `entomokit split-csv`       | `scripts/split_dataset.py` | 入口改变 + 命令改名 + 新增 val/copy-images |
+| `entomokit synthesize`      | `scripts/synthesize.py`  | 入口改变 + 注释输出格式对齐 detcli |
+
+### `entomokit segment` — 注释格式变更
+
+`segment` 和 `synthesize` 生成的注释文件格式与目录布局需与 detcli 保持一致（使用 `supervision` 库），规范如下：
+
+| 格式     | 目录布局                                                                                   | 说明                                       |
+| -------- | ------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| **COCO** | 图像与 JSON 同级平铺，JSON 文件名固定为 `annotations.coco.json`                               | bbox 格式由 `--coco-bbox-format` 控制，默认 `xywh`；支持 `xywh`/`xyxy` |
+| **YOLO** | `images/` + `labels/` 子目录，附带 `data.yaml`（含 `nc` 和带引号的 `names` 列表）              | 与 detcli 完全一致                         |
+| **VOC**  | `JPEGImages/` + `Annotations/` + `ImageSets/Main/default.txt`                               | 标准 Pascal VOC 布局                       |
+
+`segment` 新增参数：
+- `--annotation-format`：`coco`/`yolo`/`voc`，选择注释输出格式（原脚本已有该参数，对齐格式规范）
+- `--coco-bbox-format`：`xywh`/`xyxy`，COCO 格式时 bbox 的坐标约定，默认 `xywh`
+
+### `entomokit clean` — 新增参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--recursive` | flag | False | 递归扫描 `--input-dir` 下的所有子目录 |
+
+### `entomokit extract-frames` — `--input-dir` 增强
+
+`--input-dir` 同时接受：
+- 目录路径：扫描目录下所有支持的视频文件（原有行为）
+- 单个视频文件路径：直接处理该文件，无需创建临时目录
+
+### `entomokit split-csv` — 新增参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--val-ratio` | float | 0 | `ratio` 模式下验证集占 known 数据比例，0 表示不生成 val |
+| `--val-count` | int | 0 | `count` 模式下验证集样本数，0 表示不生成 val |
+| `--images-dir` | str | 可选 | 图像来源目录（`--copy-images` 时必填） |
+| `--copy-images` | flag | False | 按 split 将图像复制到对应子目录 |
+
+**输出结构**（含所有可选输出）：
+```
+out_dir/
+├── train.csv
+├── val.csv              # 仅 --val-ratio/--val-count > 0 时
+├── test.known.csv
+├── test.unknown.csv     # 仅 unknown > 0 时
+├── images/              # 仅 --copy-images 时
+│   ├── train/
+│   ├── val/
+│   ├── test_known/
+│   └── test_unknown/
+└── class_count/
+    ├── class.count
+    ├── class.train.count
+    ├── class.val.count
+    ├── class.test.known.count
+    └── class.test.unknown.count
+```
 
 ### 5.2 `classify train`
 
@@ -177,6 +233,7 @@ def register(subparsers):
 | `--device` | str | `auto` | `auto`/`cpu`/`cuda`/`mps` |
 | `--batch-size` | int | 32 | 训练 batch size |
 | `--num-workers` | int | 4 | DataLoader worker 数 |
+| `--num-threads` | int | 0 | CPU 计算线程数（0=框架自动）；`device=cpu` 时设置 `torch.set_num_threads()` |
 
 **增强预设映射**（基于 AutoGluon `model.timm_image.train_transforms`）：
 
@@ -211,6 +268,8 @@ out_dir/
 | `--onnx-model` | str | 与 `--model-dir` 二选一 | ONNX 模型路径 |
 | `--out-dir` | str | 必填 | 输出目录 |
 | `--batch-size` | int | 32 | 推理 batch size |
+| `--num-workers` | int | 4 | DataLoader worker 数 |
+| `--num-threads` | int | 0 | CPU 计算线程数（0=框架自动） |
 | `--device` | str | `auto` | `auto`/`cpu`/`cuda`/`mps` |
 
 **输出**：
@@ -229,6 +288,9 @@ out_dir/
 | `--model-dir` | str | 与 `--onnx-model` 二选一 | AutoGluon predictor 目录 |
 | `--onnx-model` | str | 与 `--model-dir` 二选一 | ONNX 模型路径 |
 | `--out-dir` | str | 必填 | 输出目录 |
+| `--batch-size` | int | 32 | 推理 batch size |
+| `--num-workers` | int | 4 | DataLoader worker 数 |
+| `--num-threads` | int | 0 | CPU 计算线程数（0=框架自动） |
 | `--device` | str | `auto` | `auto`/`cpu`/`cuda`/`mps` |
 
 **评估指标**：accuracy, precision_macro/micro, recall_macro/micro, f1_macro/micro, mcc, roc_auc_ovo
@@ -256,6 +318,8 @@ out_dir/
 | `--umap-metric` | str | `euclidean` | UMAP 距离度量 |
 | `--umap-seed` | int | 42 | UMAP 随机种子 |
 | `--batch-size` | int | 32 | 提取 batch size |
+| `--num-workers` | int | 4 | DataLoader worker 数 |
+| `--num-threads` | int | 0 | CPU 计算线程数（0=框架自动） |
 | `--device` | str | `auto` | `auto`/`cpu`/`cuda`/`mps` |
 | `--metrics-sample-size` | int | 10000 | 计算指标时最大样本数（≤0 禁用采样） |
 
@@ -291,6 +355,8 @@ out_dir/
 | `--save-npy` | flag | False | 保存 CAM 数组为 .npy |
 | `--max-images` | int | 可选 | 限制处理图像数量 |
 | `--cam-batch-size` | int | 32 | CAM 内部 batch size（ScoreCAM/EigenCAM） |
+| `--num-workers` | int | 4 | DataLoader worker 数 |
+| `--num-threads` | int | 0 | CPU 计算线程数（0=框架自动） |
 | `--device` | str | `auto` | `auto`/`cpu`/`cuda`/`mps` |
 
 > **注意**：`cam` 命令仅支持 PyTorch 原生模型（AutoGluon checkpoint 或 timm backbone），**不支持 ONNX**。GradCAM 依赖 PyTorch hook 和反向传播机制，ONNX runtime 不具备此能力。
@@ -329,13 +395,29 @@ out_dir/
 | `train` | 是 | — |
 | `predict` | 是 | 是 |
 | `evaluate` | 是 | 是 |
-| `embed` | 是（fine-tuned backbone） | 是（中间层提取） |
+| `embed` | 是（fine-tuned backbone） | **否**（需 PyTorch hook，ONNX 不支持） |
 | `cam` | 是 | **否**（技术限制）|
 | `export-onnx` | 是（输入） | 是（输出） |
 
 ---
 
-## 7. 依赖管理
+## 7. CPU/线程控制说明
+
+classify 各命令（train/predict/evaluate/embed/cam）统一支持以下三个并发控制参数：
+
+| 参数 | 作用层次 | 底层实现 |
+|------|----------|----------|
+| `--num-workers` | DataLoader 图像加载并发 | `DataLoader(num_workers=N)` |
+| `--num-threads` | PyTorch CPU 计算线程 / ONNX 推理线程 | `torch.set_num_threads(N)` / `InferenceSession(intra_op_num_threads=N)` |
+| `--device` | 计算设备选择 | `auto` 时自动检测 cuda→mps→cpu 优先级 |
+
+默认值：`--num-workers=4`，`--num-threads=0`（0 表示交由框架自动决定）。
+
+`export-onnx` 无需这三个参数（纯模型格式转换，无推理运算）。
+
+---
+
+## 8. 依赖管理
 
 AutoGluon 和 pytorch-grad-cam 是重型依赖，通过 `setup.py` 的 `extras_require` 管理，不作为默认安装依赖：
 
@@ -364,7 +446,7 @@ pip install -e ".[classify]"
 
 ---
 
-## 8. 向后兼容说明
+## 9. 向后兼容说明
 
 - `scripts/` 目录中的原始脚本**暂时保留**，不立即删除，但不再是主入口
 - `add_functions/` 目录**保留作为参考**，不作为入口
@@ -388,7 +470,7 @@ pip install -e ".[classify]"
 
 ---
 
-## 9. 未来扩展预留
+## 10. 未来扩展预留
 
 顶层命令组的设计允许未来增加新的功能组，例如：
 
