@@ -78,19 +78,15 @@ class VideoFrameExtractor:
         self.errors: List[Tuple[Path, str]] = []
 
     def get_video_files(self) -> List[Path]:
-        """Find all supported video files in input directory recursively."""
-        video_files = []
-
-        if not self.input_dir.exists():
-            raise FileNotFoundError(f"Input directory does not exist: {self.input_dir}")
-
-        for file_path in self.input_dir.rglob("*"):
-            if file_path.is_file():
-                suffix = file_path.suffix.lower()[1:]
-                if suffix in self.SUPPORTED_VIDEO_FORMATS:
-                    video_files.append(file_path)
-
-        return sorted(video_files)
+        """Return video files to process."""
+        single_filter = getattr(self, "_single_file_filter", None)
+        files = []
+        for ext in self.SUPPORTED_VIDEO_FORMATS:
+            files.extend(self.input_dir.glob(f"*.{ext}"))
+            files.extend(self.input_dir.glob(f"*.{ext.upper()}"))
+        if single_filter:
+            files = [f for f in files if f.name == single_filter]
+        return sorted(set(files))
 
     def get_video_duration_ms(self, video_path: Path) -> float:
         """Get video duration in milliseconds."""
