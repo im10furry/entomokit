@@ -372,18 +372,22 @@ out_dir/
 
 ### 5.7 `classify export-onnx`
 
+底层调用 `MultiModalPredictor.export_onnx()`，直接使用 AutoGluon 原生 ONNX 导出功能。
+
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `--model-dir` | str | 必填 | AutoGluon predictor 目录 |
 | `--out-dir` | str | 必填 | ONNX 输出目录 |
-| `--opset` | int | 17 | ONNX opset 版本 |
-| `--input-size` | int | 224 | 模型输入尺寸（正方形） |
+| `--opset` | int | 17 | ONNX opset 版本（传给 `export_onnx(opset=N)`） |
+| `--input-size` | int | 224 | 模型输入尺寸（正方形，传给 `export_onnx`） |
 
 **输出**：
 ```
 out_dir/
 └── model.onnx
 ```
+
+> 实现说明：`MultiModalPredictor.load(model_dir).export_onnx(save_path=out_dir, opset=opset, input_size=(input_size, input_size))`
 
 ---
 
