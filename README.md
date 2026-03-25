@@ -373,9 +373,25 @@ entomokit classify predict \
     --input-csv test.csv \
     --onnx-model model.onnx \
     --out-dir runs/predict/
+
+# CSV image names + image root directory
+entomokit classify predict \
+    --input-csv out/split/test.known.csv \
+    --images-dir data/Epidorcus/images/ \
+    --model-dir runs/exp1/AutogluonModels/convnextv2_femto \
+    --out-dir runs/predict/
 ```
 
-`--input-csv` and `--images-dir` are mutually exclusive. `--model-dir` and `--onnx-model` are mutually exclusive.
+Input resolution rules:
+
+- provide at least one of `--input-csv` or `--images-dir`
+- if CSV `image` values are already readable paths, CSV is used directly
+- if CSV `image` values are names/relative values, also provide `--images-dir` to resolve files
+- if only `--images-dir` is given, all images in that directory are predicted
+- if CSV paths are already readable and `--images-dir` also contains images, command aborts to avoid ambiguous sources
+- if CSV references files missing under `--images-dir`, command aborts and writes full missing list to `logs/missing_images.txt`
+
+`--model-dir` and `--onnx-model` remain mutually exclusive.
 
 #### `classify evaluate`
 

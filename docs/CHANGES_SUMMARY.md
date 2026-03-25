@@ -520,3 +520,44 @@ entomokit classify export-onnx
 
 ### Test Results
 All 94 tests pass, 2 skipped.
+
+---
+
+## Additional Changes (2026-03-25) — `classify predict` Input Flexibility + Missing-Image Diagnostics
+
+### Summary
+
+Updated `entomokit classify predict` to support mixed input workflows where CSV rows contain image names (not absolute paths), while keeping guardrails for ambiguous input sources.
+
+### Changes to `entomokit/classify/predict.py`
+
+- Removed parser-level mutual exclusion between `--input-csv` and `--images-dir`.
+- Added `_resolve_predict_inputs()` to resolve input source with explicit rules:
+  - CSV only: use CSV directly if paths are readable.
+  - CSV + images dir: resolve CSV image values under `--images-dir` when CSV values are not directly readable paths.
+  - Images dir only: scan directory images for prediction.
+  - Ambiguous case (CSV already readable + non-empty images dir): abort with validation error.
+- Added `PredictInputError` for structured input validation failures.
+- Added friendly diagnostics for missing images referenced by CSV:
+  - writes complete missing list to `<out-dir>/logs/missing_images.txt`
+  - prints stderr pointer to the generated file.
+
+### Tests
+
+- Added `tests/test_classify_predict_cli.py` coverage for:
+  - parser accepts `--input-csv` with `--images-dir`
+  - CSV names resolved via `--images-dir`
+  - clear error when `--images-dir` is missing for unresolved CSV paths
+  - ambiguity rejection when CSV already has readable paths and images dir also has images
+  - images-dir-only scan path
+  - missing-image diagnostic file output in `run()`
+
+### Verification
+
+Executed:
+
+```bash
+pytest tests/test_classify_predict_cli.py tests/test_main_cli.py tests/test_cli_help_texts.py
+```
+
+Result: 10 passed.
