@@ -13,12 +13,14 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument(
-        "--label-csv", required=True, help="CSV with 'image' and 'label' columns."
+        "--label-csv",
+        default=None,
+        help="Optional CSV with 'image' and 'label' columns. If omitted, all images in --images-dir are used.",
     )
     p.add_argument(
         "--images-dir",
         required=True,
-        help="Directory containing images referenced by --label-csv.",
+        help="Directory containing images (and those referenced by --label-csv when provided).",
     )
     p.add_argument(
         "--out-dir",
@@ -84,6 +86,11 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         help="Save raw CAM heatmaps as NumPy arrays.",
     )
     p.add_argument(
+        "--dump-model-structure",
+        action="store_true",
+        help="Write model layer names to out-dir/model_layers.txt for --target-layer-name reference.",
+    )
+    p.add_argument(
         "--max-images",
         type=int,
         default=None,
@@ -130,7 +137,7 @@ def run(args: argparse.Namespace) -> None:
     set_num_threads(args.num_threads)
 
     run_cam(
-        label_csv=Path(args.label_csv),
+        label_csv=Path(args.label_csv) if args.label_csv else None,
         images_dir=Path(args.images_dir),
         out_dir=out_dir,
         model_dir=Path(args.model_dir) if args.model_dir else None,
@@ -144,6 +151,7 @@ def run(args: argparse.Namespace) -> None:
         image_weight=args.image_weight,
         fig_format=args.fig_format,
         save_npy=args.save_npy,
+        dump_model_structure=args.dump_model_structure,
         max_images=args.max_images,
         cam_batch_size=args.cam_batch_size,
         device=device,

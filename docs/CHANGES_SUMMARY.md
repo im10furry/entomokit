@@ -494,13 +494,14 @@ entomokit classify embed
     Metrics: NMI, ARI, Recall@1/5/10, kNN Acc k1/5/20, Linear Probing, mAP@R, Purity, Silhouette
 
 entomokit classify cam
-    --label-csv     CSV with image/label columns
+    --label-csv     Optional CSV with image/label columns
     --images-dir    Images directory
     --model-dir / --base-model  (mutually exclusive; no --onnx-model)
     --cam-method    gradcam/gradcampp/layercam/scorecam/eigencam/ablationcam
     --arch          cnn/vit (auto-detected if not set)
-    --save-npy      Save raw CAM arrays as .npy
-    Output: figures/, arrays/, cam_summary.csv
+    --save-npy      Save raw CAM arrays as .npy (creates arrays/)
+    --dump-model-structure  Write model_layers.txt for target-layer selection
+    Output: figures/, cam_summary.csv, and arrays/ only with --save-npy
 
 entomokit classify export-onnx
     --model-dir     AutoGluon predictor directory
@@ -819,3 +820,58 @@ pytest -q tests/test_classify_embed_cli.py tests/test_classify_evaluate_cli.py t
 ```
 
 Result: 10 passed, no CUDA/sklearn warnings on stdout.
+
+---
+
+## Additional Changes (2026-03-25) — `classify cam` Optional Labels + Layer Dump + Output Cleanup
+
+### Summary
+
+Improved `entomokit classify cam` usability by making labels optional, avoiding empty `arrays/` directories when not needed, and adding a model-layer dump file for easier `--target-layer-name` selection.
+
+### Changes to `entomokit/classify/cam.py`
+
+- Made `--label-csv` optional.
+- Added `--dump-model-structure` flag.
+- Updated `--images-dir` help text to support both CSV-driven and directory-scan workflows.
+- Forwarded optional label CSV and model-structure dump flag to runtime `run_cam()`.
+
+### Changes to `src/classification/cam.py`
+
+- Added `collect_image_label_rows()`:
+  - If `--label-csv` is provided, reads `image,label` from CSV.
+  - If omitted, scans `--images-dir` recursively for image files and uses empty labels.
+- Updated output directory creation:
+  - Always creates `figures/`.
+  - Creates `arrays/` only when `--save-npy` is enabled.
+- Added model structure export via `write_model_structure()` to generate `model_layers.txt`.
+- Enhanced `--target-layer-name` resolution:
+  - Supports numeric indexing (e.g., `blocks.11.norm1`).
+  - Supports `ModuleDict` key traversal.
+- Fixed name-collision bug where boolean `dump_model_structure` shadowed callable helper.
+
+### Changes to `README.md`
+
+- Updated `classify cam` example to work without mandatory `--label-csv`.
+- Documented that `arrays/` is generated only with `--save-npy`.
+- Documented `--dump-model-structure` and `model_layers.txt` usage.
+
+### New test file
+
+- `tests/test_classification_cam.py` — verifies:
+  - `arrays/` is not created when `--save-npy` is omitted.
+  - No-label image-directory scan path.
+  - CLI runner forwards optional label CSV and dump flag correctly.
+  - Parser accepts missing `--label-csv`.
+  - `run_cam()` writes `model_layers.txt` when dump flag is enabled.
+
+### Verification
+
+Executed and passed:
+
+```bash
+pytest tests/test_classification_cam.py
+pytest tests/test_classification_cam.py tests/test_classify_embed_cli.py
+pytest tests/test_cli_help_texts.py tests/test_main_cli.py
+entomokit classify cam --images-dir data/Epidorcus/images/ --out-dir out/cam --model-dir out/train/AutogluonModels/convnextv2_femto/ --num-classes 2 --cam-method scorecam --dump-model-structure --max-images 1
+```

@@ -442,7 +442,6 @@ Outputs: `embeddings.csv`, `metrics.csv` (NMI, ARI, Recall@1/5/10, kNN Acc, mAP@
 
 ```bash
 entomokit classify cam \
-    --label-csv data/test.csv \
     --images-dir data/images/ \
     --model-dir runs/exp1/AutogluonModels/convnextv2_femto \
     --cam-method gradcam \
@@ -450,7 +449,9 @@ entomokit classify cam \
     --save-npy
 ```
 
-Supports: `gradcam`, `gradcampp`, `layercam`, `scorecam`, `eigencam`, `ablationcam`. Auto-detects CNN vs ViT architecture. Outputs `figures/`, `arrays/`, `cam_summary.csv`. **ONNX not supported** (requires PyTorch hooks).
+Optional: `--label-csv data/test.csv` to include ground-truth labels in `cam_summary.csv`.
+
+Supports: `gradcam`, `gradcampp`, `layercam`, `scorecam`, `eigencam`, `ablationcam`. Auto-detects CNN vs ViT architecture. Outputs `figures/`, `cam_summary.csv`, and `arrays/` only when `--save-npy` is used. Use `--dump-model-structure` to write `model_layers.txt` for easier `--target-layer-name` selection. **ONNX not supported** (requires PyTorch hooks).
 
 #### `classify export-onnx`
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -39,12 +39,30 @@ CAM_METHODS = {
     "eigencam": EigenCAM,
 }
 
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+
 
 def load_label_file(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     if "image" not in df.columns or "label" not in df.columns:
         raise ValueError("CSV must contain columns named 'image' and 'label'.")
     return df[["image", "label"]]
+
+
+def collect_image_label_rows(
+    *,
+    images_dir: Path,
+    label_csv: Optional[Path],
+) -> pd.DataFrame:
+    if label_csv is not None:
+        return load_label_file(label_csv)
+
+    images = [
+        p.relative_to(images_dir).as_posix()
+        for p in sorted(images_dir.rglob("*"))
+        if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+    ]
+    return pd.DataFrame({"image": images, "label": ["" for _ in images]})
 
 
 def load_model_from_args(
@@ -122,6 +140,18 @@ def build_eval_transforms(
 def get_module_by_name(model: torch.nn.Module, name: str) -> torch.nn.Module:
     module = model
     for attr in name.split("."):
+        if attr.isdigit():
+            idx = int(attr)
+            try:
+                module = module[idx]
+            except Exception as exc:
+                raise AttributeError(
+                    f"Module '{module.__class__.__name__}' has no index '{attr}'"
+                ) from exc
+            continue
+        if isinstance(module, torch.nn.ModuleDict) and attr in module:
+            module = module[attr]
+            continue
         if not hasattr(module, attr):
             raise AttributeError(
                 f"Module '{module.__class__.__name__}' has no attribute '{attr}'"
@@ -208,12 +238,27 @@ def prepare_cam(
     return cam, target_layers, reshape_transform
 
 
-def prepare_output_dirs(out_dir: Path) -> Dict[str, Path]:
+def prepare_output_dirs(out_dir: Path, save_npy: bool) -> Dict[str, Optional[Path]]:
     fig_dir = out_dir / "figures"
-    array_dir = out_dir / "arrays"
-    for d in [fig_dir, array_dir]:
-        d.mkdir(parents=True, exist_ok=True)
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    array_dir: Optional[Path] = None
+    if save_npy:
+        array_dir = out_dir / "arrays"
+        array_dir.mkdir(parents=True, exist_ok=True)
     return {"fig": fig_dir, "array": array_dir}
+
+
+def write_model_structure(model: torch.nn.Module, out_dir: Path) -> Path:
+    path = out_dir / "model_layers.txt"
+    lines = [
+        "# Named modules for --target-layer-name",
+        "# Format: <name>\t<class>",
+    ]
+    for name, module in model.named_modules():
+        module_name = name if name else "<root>"
+        lines.append(f"{module_name}\t{module.__class__.__name__}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def process_image(
@@ -225,7 +270,7 @@ def process_image(
     cam_extractor,
     device: torch.device,
     fig_dir: Path,
-    array_dir: Path,
+    array_dir: Optional[Path],
     image_weight: float,
     fig_format: str,
     save_npy: bool,
@@ -273,7 +318,7 @@ def process_image(
     combined.save(fig_path)
 
     cam_array_path = ""
-    if save_npy:
+    if save_npy and array_dir is not None:
         npy_path = array_dir / f"{img_path.stem}.npy"
         np.save(npy_path, cam_norm.astype(np.float32))
         cam_array_path = str(npy_path)
@@ -290,7 +335,7 @@ def process_image(
 
 def run_cam(
     *,
-    label_csv: Path,
+    label_csv: Optional[Path],
     images_dir: Path,
     out_dir: Path,
     model_dir: Optional[Path],
@@ -304,13 +349,14 @@ def run_cam(
     image_weight: float,
     fig_format: str,
     save_npy: bool,
+    dump_model_structure: bool,
     max_images: Optional[int],
     cam_batch_size: int,
     device: torch.device,
 ) -> None:
     """Run CAM heatmap generation for all images in label_csv."""
-    out_dirs = prepare_output_dirs(out_dir)
-    df = load_label_file(label_csv)
+    out_dirs = prepare_output_dirs(out_dir, save_npy=save_npy)
+    df = collect_image_label_rows(images_dir=images_dir, label_csv=label_csv)
     model = load_model_from_args(
         load_ag=str(model_dir) if model_dir else None,
         base_model=base_model,
@@ -332,6 +378,9 @@ def run_cam(
     )
     if reshape_transform:
         logging.info("Enabled ViT reshape_transform for CAM.")
+    if dump_model_structure:
+        layers_path = write_model_structure(model, out_dir)
+        logging.info("Model layer names written to %s", layers_path)
 
     records = []
     for idx, row in df.iterrows():
