@@ -33,8 +33,6 @@ env/
 *~
 
 # Data and models (large files)
-data/*
-!data/.gitkeep
 models/*
 !models/.gitkeep
 outputs/*
