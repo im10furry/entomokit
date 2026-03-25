@@ -26,7 +26,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--images-dir", help="Directory to scan for images.")
     model_group = p.add_mutually_exclusive_group(required=True)
     model_group.add_argument("--model-dir", help="AutoGluon predictor directory.")
-    model_group.add_argument("--onnx-model", help="ONNX model file path.")
+    model_group.add_argument(
+        "--onnx-model",
+        help="ONNX model file path (requires onnxruntime).",
+    )
     p.add_argument(
         "--out-dir",
         required=True,

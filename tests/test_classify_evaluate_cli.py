@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from types import SimpleNamespace
 
 import pandas as pd
@@ -72,3 +73,55 @@ def test_classify_evaluate_run_writes_csv_in_out_dir(
     }
 
     assert not (out_dir / "logs" / "evaluations.txt").exists()
+
+
+def test_evaluate_onnx_maps_string_labels_using_sidecar(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from src.classification.evaluator import evaluate_onnx
+
+    test_csv = tmp_path / "test.csv"
+    pd.DataFrame(
+        {
+            "image": ["a.jpg", "b.jpg"],
+            "label": ["Epidorcus_gracilis", "Epidorcus_tonkinensis"],
+        }
+    ).to_csv(test_csv, index=False)
+
+    onnx_path = tmp_path / "model.onnx"
+    onnx_path.write_bytes(b"onnx")
+    (tmp_path / "label_classes.json").write_text(
+        json.dumps(
+            {
+                "class_labels": [
+                    "Epidorcus_gracilis",
+                    "Epidorcus_tonkinensis",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "src.classification.predictor.predict_onnx",
+        lambda *_args, **_kwargs: pd.DataFrame(
+            {
+                "image": ["a.jpg", "b.jpg"],
+                "prediction": ["Epidorcus_gracilis", "Epidorcus_tonkinensis"],
+                "prediction_index": [0, 1],
+                "proba_0": [0.9, 0.1],
+                "proba_1": [0.1, 0.9],
+            }
+        ),
+    )
+
+    metrics = evaluate_onnx(
+        test_csv=test_csv,
+        images_dir=tmp_path,
+        onnx_path=onnx_path,
+        batch_size=2,
+        num_threads=0,
+    )
+
+    assert metrics["accuracy"] == 1.0

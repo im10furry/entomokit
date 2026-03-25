@@ -18,3 +18,6 @@ imagehash
 pandas
 # Image synthesis (synthesize.py) - uses skimage for color matching
 scikit-image
+
+# ONNX inference/export for classify --onnx-model
+onnxruntime

@@ -16,7 +16,9 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--out-dir", required=True, help="Output directory for model.onnx.")
     p.add_argument("--opset", type=int, default=17, help="ONNX opset version.")
     p.add_argument(
-        "--input-size", type=int, default=224, help="Model input image size (square)."
+        "--sample-image",
+        default=None,
+        help="Optional image path for ONNX trace input (default: auto-generated temp image).",
     )
     p.set_defaults(func=run)
 
@@ -33,6 +35,6 @@ def run(args: argparse.Namespace) -> None:
         model_dir=Path(args.model_dir),
         out_dir=out_dir,
         opset=args.opset,
-        input_size=args.input_size,
+        sample_image=Path(args.sample_image) if args.sample_image else None,
     )
     print(f"ONNX model saved to: {onnx_path}")

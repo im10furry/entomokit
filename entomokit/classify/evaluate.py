@@ -27,7 +27,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     model_group.add_argument(
         "--model-dir", help="AutoGluon predictor directory for evaluation."
     )
-    model_group.add_argument("--onnx-model", help="ONNX model file path.")
+    model_group.add_argument(
+        "--onnx-model",
+        help="ONNX model file path (requires onnxruntime).",
+    )
     p.add_argument(
         "--out-dir",
         required=True,

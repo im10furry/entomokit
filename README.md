@@ -371,7 +371,7 @@ entomokit classify predict \
 # ONNX model
 entomokit classify predict \
     --input-csv test.csv \
-    --onnx-model model.onnx \
+    --onnx-model runs/onnx/model.onnx \
     --out-dir runs/predict/
 
 # CSV image names + image root directory
@@ -393,13 +393,25 @@ Input resolution rules:
 
 `--model-dir` and `--onnx-model` remain mutually exclusive.
 
+ONNX mode requires `onnxruntime`:
+
+```bash
+pip install onnxruntime
+# or install classify extras
+pip install 'entomokit[classify]'
+```
+
+For ONNX inference outputs:
+- `prediction` is class name when `label_classes.json` exists next to the ONNX file
+- `prediction_index` always stores the numeric class index
+
 #### `classify evaluate`
 
 ```bash
 entomokit classify evaluate \
     --test-csv data/test.csv \
     --images-dir data/images/ \
-    --model-dir runs/exp1/AutogluonModels/convnextv2_femto \
+    --onnx-model runs/onnx/model.onnx \
     --out-dir runs/eval/
 ```
 
@@ -446,9 +458,14 @@ Supports: `gradcam`, `gradcampp`, `layercam`, `scorecam`, `eigencam`, `ablationc
 entomokit classify export-onnx \
     --model-dir runs/exp1/AutogluonModels/convnextv2_femto \
     --out-dir runs/onnx/ \
-    --opset 17 \
-    --input-size 224
+    --opset 17
 ```
+
+Notes:
+- Output file is written directly to `--out-dir/model.onnx`
+- AutoGluon ONNX export is trace-based; `entomokit` auto-generates a temporary trace image if `--sample-image` is not provided
+- You can pass `--sample-image path/to/example.jpg` to trace with a real sample image
+- Export also writes `label_classes.json` to `--out-dir` for ONNX label-name mapping in `predict`/`evaluate`
 
 ## Common Behaviours
 

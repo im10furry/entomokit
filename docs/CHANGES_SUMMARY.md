@@ -694,3 +694,79 @@ Fixed multiple issues with `entomokit classify train` to work correctly on Apple
 ### Test Results
 
 All tests pass after changes.
+
+---
+
+## Additional Changes (2026-03-25) — ONNX Export/Inference Compatibility and Docs Update
+
+### Summary
+
+Fixed ONNX export API mismatches with current AutoGluon, resolved ONNX inference input-feed errors, normalized ONNX output path layout, and updated user-facing docs for ONNX runtime requirements.
+
+### Changes to `entomokit/classify/export_onnx.py`
+
+- Removed obsolete `--input-size` argument (not part of current AutoGluon `export_onnx` API).
+- Added optional `--sample-image` argument for explicit trace input.
+- Updated help text to clarify trace behavior.
+
+### Changes to `src/classification/exporter.py`
+
+- Switched to current AutoGluon export kwargs:
+  - `data=...`
+  - `path=...`
+  - `opset_version=...`
+- Added image column auto-detection from `assets.json` (`image_path` column lookup).
+- Added temporary trace image generation when `--sample-image` is not provided.
+- Added cleanup of temporary trace image after export.
+- Added compatibility handling for nested export artifacts and normalized final output to:
+  - `--out-dir/model.onnx`
+- Added sidecar metadata output:
+  - `--out-dir/label_classes.json`
+
+### Changes to `src/classification/predictor.py`
+
+- Added explicit `onnxruntime` import error guidance with install commands.
+- Added ONNX path normalization and existence checks.
+- Fixed ONNX input feed to support multi-input models:
+  - auto-feeds `*_valid_num` tensors
+  - auto-expands image tensor to 5D when required
+- Improved output tensor selection to pick logits tensor reliably.
+- Added `label_classes.json` loading for label-name mapping.
+- Prediction output now includes:
+  - `prediction_index` (numeric class index)
+  - `prediction` (class name when sidecar exists, else numeric index)
+
+### Changes to `src/classification/evaluator.py`
+
+- Added ONNX label mapping support during evaluation:
+  - maps string labels in CSV to class indices via `label_classes.json`
+  - uses `prediction_index` for metric computation when mapping is available
+
+### Changes to CLI help and docs
+
+- Updated ONNX help text in:
+  - `entomokit/classify/predict.py`
+  - `entomokit/classify/evaluate.py`
+- Updated `README.md`:
+  - ONNX examples use `--onnx-model runs/onnx/model.onnx`
+  - added `onnxruntime` installation note
+  - documented trace behavior and optional `--sample-image`
+  - documented `label_classes.json` sidecar and `prediction_index`
+- Updated `requirements.txt` to include `onnxruntime`.
+
+### Tests added/updated
+
+- Added `tests/test_classify_export_onnx_cli.py`.
+- Added `tests/test_classification_predictor_onnx.py`.
+- Updated `tests/test_classify_evaluate_cli.py` with ONNX label-mapping coverage.
+
+### Verification
+
+Executed and passed:
+
+```bash
+pytest -q tests/test_classify_export_onnx_cli.py tests/test_classification_predictor_onnx.py tests/test_classify_evaluate_cli.py tests/test_cli_help_texts.py tests/test_main_cli.py
+entomokit classify export-onnx --model-dir out/train/AutogluonModels/convnextv2_femto/ --out-dir out/onnx
+entomokit classify evaluate --test-csv out/split/test.known.csv --images-dir data/Epidorcus/images/ --onnx-model out/onnx/model.onnx --out-dir out/onnx-eval --device mps
+entomokit classify predict --input-csv out/split/test.known.csv --images-dir data/Epidorcus/images/ --onnx-model out/onnx/model.onnx --out-dir out/onnx-predict --device mps
+```

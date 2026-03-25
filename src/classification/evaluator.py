@@ -130,13 +130,20 @@ def evaluate_onnx(
     num_threads: int,
 ) -> Dict[str, float]:
     """Evaluate ONNX model using predict_onnx + sklearn metrics."""
-    from src.classification.predictor import predict_onnx
+    from src.classification.predictor import predict_onnx, load_onnx_class_labels
 
     df = pd.read_csv(test_csv)
     result = predict_onnx(df, images_dir, onnx_path, batch_size, num_threads)
 
     labels = df["label"].values
     predictions = result["prediction"].values
+
+    class_labels = load_onnx_class_labels(onnx_path)
+    if class_labels is not None and "prediction_index" in result.columns:
+        label_to_idx = {label: idx for idx, label in enumerate(class_labels)}
+        if all(label in label_to_idx for label in labels):
+            labels = np.array([label_to_idx[label] for label in labels])
+            predictions = result["prediction_index"].values
 
     proba_cols = sorted(
         [col for col in result.columns if col.startswith("proba_")],
