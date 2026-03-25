@@ -436,7 +436,7 @@ entomokit classify embed \
     --out-dir runs/embed/
 ```
 
-Outputs: `embeddings.csv`, `logs/metrics.csv` (NMI, ARI, Recall@1/5/10, kNN Acc, mAP@R, Purity, Silhouette), `umap.pdf`.
+Outputs: `embeddings.csv`, `metrics.csv` (NMI, ARI, Recall@1/5/10, kNN Acc, mAP@R, Purity, Silhouette), `umap.pdf`.
 
 #### `classify cam`
 

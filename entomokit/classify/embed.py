@@ -100,11 +100,24 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
+    import warnings
+
     import numpy as np
     import pandas as pd
     from pathlib import Path
     from src.classification.utils import select_device, set_num_threads, load_image_csv
     from src.common.cli import save_log
+
+    warnings.filterwarnings(
+        "ignore",
+        message="User provided device_type of 'cuda', but CUDA is not available. Disabling",
+        category=UserWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message="torch.cuda.amp.GradScaler is enabled, but CUDA is not available.  Disabling.",
+        category=UserWarning,
+    )
 
     if args.visualize and not args.label_csv:
         print(
@@ -159,9 +172,11 @@ def run(args: argparse.Namespace) -> None:
             embeddings, labels, sample_size=args.metrics_sample_size
         )
         metrics_df = pd.DataFrame([metrics])
-        metrics_df.to_csv(logs_dir / "metrics.csv", index=False)
+        metrics_path = out_dir / "metrics.csv"
+        metrics_df.to_csv(metrics_path, index=False)
         for k, v in metrics.items():
             print(f"  {k}: {v:.4f}")
+        print(f"Metrics saved to: {metrics_path}")
 
         if args.visualize:
             from src.classification.embedder import visualize_umap

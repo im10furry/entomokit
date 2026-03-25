@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -72,14 +73,25 @@ def extract_embeddings_ag(
     device: torch.device,
 ) -> pd.DataFrame:
     """Extract embeddings using a fine-tuned AutoGluon model."""
-    from autogluon.multimodal import MultiModalPredictor
-
     IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
     paths = sorted([p for p in images_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS])
     df_in = pd.DataFrame({"image": [str(p) for p in paths]})
 
-    predictor = MultiModalPredictor.load(str(model_dir))
-    embeddings = predictor.extract_embedding(df_in)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="User provided device_type of 'cuda', but CUDA is not available. Disabling",
+            category=UserWarning,
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message="torch.cuda.amp.GradScaler is enabled, but CUDA is not available.  Disabling.",
+            category=UserWarning,
+        )
+        from autogluon.multimodal import MultiModalPredictor
+
+        predictor = MultiModalPredictor.load(str(model_dir))
+        embeddings = np.asarray(predictor.extract_embedding(df_in), dtype=np.float32)
 
     embed_df = pd.DataFrame(
         embeddings, columns=[f"feat_{i}" for i in range(embeddings.shape[1])]
@@ -107,101 +119,110 @@ def compute_embedding_metrics(
     from sklearn.linear_model import LogisticRegression
     from sklearn.preprocessing import LabelEncoder
 
-    le = LabelEncoder()
-    y = le.fit_transform(labels)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=".*encountered in matmul",
+            category=RuntimeWarning,
+        )
 
-    # Subsample if needed
-    n = len(y)
-    if 0 < sample_size < n:
-        rng = np.random.RandomState(42)
-        idx = rng.choice(n, sample_size, replace=False)
-        X, y = embeddings[idx], y[idx]
-    else:
-        X = embeddings
+        le = LabelEncoder()
+        y = le.fit_transform(labels)
 
-    # Normalize
-    norms = np.linalg.norm(X, axis=1, keepdims=True)
-    X_norm = X / np.where(norms > 0, norms, 1)
-
-    # Clustering metrics
-    from sklearn.cluster import KMeans
-
-    n_clusters = len(np.unique(y))
-    km = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    cluster_labels = km.fit_predict(X_norm)
-
-    nmi = normalized_mutual_info_score(y, cluster_labels)
-    ari = adjusted_rand_score(y, cluster_labels)
-
-    # Purity
-    from collections import Counter
-
-    purity_sum = sum(
-        Counter(y[cluster_labels == c]).most_common(1)[0][1]
-        for c in np.unique(cluster_labels)
-    )
-    purity = purity_sum / len(y)
-
-    # kNN accuracy
-    def knn_acc(k):
-        knn = KNeighborsClassifier(n_neighbors=k, metric="euclidean")
-        knn.fit(X_norm, y)
-        return knn.score(X_norm, y)
-
-    # Recall@K
-    def recall_at_k(k):
-        from sklearn.neighbors import NearestNeighbors
-
-        nbrs = NearestNeighbors(n_neighbors=k + 1, metric="euclidean")
-        nbrs.fit(X_norm)
-        indices = nbrs.kneighbors(X_norm, return_distance=False)[:, 1:]
-        hits = sum(any(y[j] == y[i] for j in indices[i]) for i in range(len(y)))
-        return hits / len(y)
-
-    # Linear probing
-    lr = LogisticRegression(max_iter=500, random_state=42)
-    lr.fit(X_norm, y)
-    lp_acc = lr.score(X_norm, y)
-
-    # Silhouette (sample 2000 for speed)
-    sil_idx = np.random.RandomState(42).choice(len(y), min(2000, len(y)), replace=False)
-    sil = silhouette_score(X_norm[sil_idx], y[sil_idx])
-
-    # mAP@R: mean Average Precision at R (R = number of same-class samples)
-    def mean_ap_at_r() -> float:
-        from sklearn.neighbors import NearestNeighbors
-
+        # Subsample if needed
         n = len(y)
-        nbrs = NearestNeighbors(n_neighbors=n, metric="euclidean")
-        nbrs.fit(X_norm)
-        indices = nbrs.kneighbors(X_norm, return_distance=False)[:, 1:]
-        aps = []
-        for i in range(n):
-            r = (
-                int((y == y[i]).sum()) - 1
-            )  # number of same-class samples excluding self
-            if r == 0:
-                continue
-            retrieved = indices[i, :r]
-            hits = y[retrieved] == y[i]
-            precisions = hits.cumsum() / (np.arange(len(hits)) + 1)
-            aps.append((precisions * hits).sum() / r)
-        return float(np.mean(aps)) if aps else 0.0
+        if 0 < sample_size < n:
+            rng = np.random.RandomState(42)
+            idx = rng.choice(n, sample_size, replace=False)
+            X, y = embeddings[idx], y[idx]
+        else:
+            X = embeddings
 
-    return {
-        "NMI": nmi,
-        "ARI": ari,
-        "Recall@1": recall_at_k(1),
-        "Recall@5": recall_at_k(5),
-        "Recall@10": recall_at_k(10),
-        "kNN_Acc_k1": knn_acc(1),
-        "kNN_Acc_k5": knn_acc(5),
-        "kNN_Acc_k20": knn_acc(20),
-        "Linear_Probing_Acc": lp_acc,
-        "mAP@R": mean_ap_at_r(),
-        "Purity": purity,
-        "Silhouette_Score": sil,
-    }
+        # Normalize
+        norms = np.linalg.norm(X, axis=1, keepdims=True)
+        X_norm = X / np.where(norms > 0, norms, 1)
+
+        # Clustering metrics
+        from sklearn.cluster import KMeans
+
+        n_clusters = len(np.unique(y))
+        km = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        cluster_labels = km.fit_predict(X_norm)
+
+        nmi = normalized_mutual_info_score(y, cluster_labels)
+        ari = adjusted_rand_score(y, cluster_labels)
+
+        # Purity
+        from collections import Counter
+
+        purity_sum = sum(
+            Counter(y[cluster_labels == c]).most_common(1)[0][1]
+            for c in np.unique(cluster_labels)
+        )
+        purity = purity_sum / len(y)
+
+        # kNN accuracy
+        def knn_acc(k):
+            knn = KNeighborsClassifier(n_neighbors=k, metric="euclidean")
+            knn.fit(X_norm, y)
+            return knn.score(X_norm, y)
+
+        # Recall@K
+        def recall_at_k(k):
+            from sklearn.neighbors import NearestNeighbors
+
+            nbrs = NearestNeighbors(n_neighbors=k + 1, metric="euclidean")
+            nbrs.fit(X_norm)
+            indices = nbrs.kneighbors(X_norm, return_distance=False)[:, 1:]
+            hits = sum(any(y[j] == y[i] for j in indices[i]) for i in range(len(y)))
+            return hits / len(y)
+
+        # Linear probing
+        lr = LogisticRegression(max_iter=500, random_state=42, solver="liblinear")
+        lr.fit(X_norm, y)
+        lp_acc = lr.score(X_norm, y)
+
+        # Silhouette (sample 2000 for speed)
+        sil_idx = np.random.RandomState(42).choice(
+            len(y), min(2000, len(y)), replace=False
+        )
+        sil = silhouette_score(X_norm[sil_idx], y[sil_idx])
+
+        # mAP@R: mean Average Precision at R (R = number of same-class samples)
+        def mean_ap_at_r() -> float:
+            from sklearn.neighbors import NearestNeighbors
+
+            n = len(y)
+            nbrs = NearestNeighbors(n_neighbors=n, metric="euclidean")
+            nbrs.fit(X_norm)
+            indices = nbrs.kneighbors(X_norm, return_distance=False)[:, 1:]
+            aps = []
+            for i in range(n):
+                r = (
+                    int((y == y[i]).sum()) - 1
+                )  # number of same-class samples excluding self
+                if r == 0:
+                    continue
+                retrieved = indices[i, :r]
+                hits = y[retrieved] == y[i]
+                precisions = hits.cumsum() / (np.arange(len(hits)) + 1)
+                aps.append((precisions * hits).sum() / r)
+            return float(np.mean(aps)) if aps else 0.0
+
+        return {
+            "NMI": nmi,
+            "ARI": ari,
+            "Recall@1": recall_at_k(1),
+            "Recall@5": recall_at_k(5),
+            "Recall@10": recall_at_k(10),
+            "kNN_Acc_k1": knn_acc(1),
+            "kNN_Acc_k5": knn_acc(5),
+            "kNN_Acc_k20": knn_acc(20),
+            "Linear_Probing_Acc": lp_acc,
+            "mAP@R": mean_ap_at_r(),
+            "Purity": purity,
+            "Silhouette_Score": sil,
+        }
 
 
 def visualize_umap(

@@ -770,3 +770,52 @@ entomokit classify export-onnx --model-dir out/train/AutogluonModels/convnextv2_
 entomokit classify evaluate --test-csv out/split/test.known.csv --images-dir data/Epidorcus/images/ --onnx-model out/onnx/model.onnx --out-dir out/onnx-eval --device mps
 entomokit classify predict --input-csv out/split/test.known.csv --images-dir data/Epidorcus/images/ --onnx-model out/onnx/model.onnx --out-dir out/onnx-predict --device mps
 ```
+
+---
+
+## Additional Changes (2026-03-25) — `classify embed` Warning Cleanup + Output Path Fixes
+
+### Summary
+
+Fixed CUDA autocast warning spam on non-CUDA machines, suppressed sklearn numerical warnings during embedding metric computation, and corrected output paths for `entomokit classify embed`.
+
+### Changes to `entomokit/main.py`
+
+- Added `_ensure_project_root_on_path()` to prioritize local project root over similarly named site-packages.
+- Prevents unintended import of external `src` packages that trigger CUDA-related warnings at import time.
+
+### Changes to `entomokit/classify/embed.py`
+
+- Added warning filters for CUDA autocast and GradScaler warnings on non-CUDA devices.
+- `metrics.csv` now saved directly to `--out-dir` (previously saved to `--out-dir/logs/`).
+- Added terminal output `Metrics saved to: <path>` after printing metric values.
+
+### Changes to `src/classification/embedder.py`
+
+- Added warning suppression for CUDA autocast/GradScaler warnings in `extract_embeddings_ag()`.
+- Suppressed sklearn matmul RuntimeWarnings inside `compute_embedding_metrics()`.
+- Added explicit float32 conversion for AutoGluon embeddings.
+- Changed LogisticRegression solver to `"liblinear"` for stability with small datasets.
+
+### Changes to `README.md`
+
+- Updated `classify embed` output docs from `logs/metrics.csv` to `metrics.csv`.
+
+### New test file
+
+- `tests/test_classify_embed_cli.py` — verifies:
+  - `metrics.csv` written to output root directory
+  - Terminal includes `Metrics saved to:` message
+  - `UMAP saved to:` message present
+
+### Verification
+
+Executed and passed:
+
+```bash
+entomokit classify embed --images-dir out/split/images/test_known/ --out-dir out/embed --model-dir out/train/AutogluonModels/convnextv2_femto/ --label-csv out/split/test.known.csv --visualize
+entomokit classify embed --images-dir out/split/images/test_known/ --out-dir out/embed-default --base-model convnextv2_femto
+pytest -q tests/test_classify_embed_cli.py tests/test_classify_evaluate_cli.py tests/test_classify_predict_cli.py
+```
+
+Result: 10 passed, no CUDA/sklearn warnings on stdout.

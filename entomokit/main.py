@@ -8,6 +8,14 @@ import sys
 from pathlib import Path
 
 
+def _ensure_project_root_on_path() -> None:
+    """Ensure local project root is importable before similarly named packages."""
+    root = Path(__file__).resolve().parent.parent
+    root_str = str(root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+
+
 def _detect_shell() -> str:
     shell = Path(os.environ.get("SHELL", "")).name
     if shell in {"bash", "zsh", "fish"}:
@@ -114,6 +122,7 @@ def _activate_argcomplete(parser: argparse.ArgumentParser) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    _ensure_project_root_on_path()
     parser = _build_parser()
     _activate_argcomplete(parser)
 
