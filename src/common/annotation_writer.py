@@ -86,7 +86,6 @@ def _save_coco(
     """Save as COCO JSON (flat layout, fixed filename)."""
     anno_path = out_dir / "annotations.coco.json"
     dataset.as_coco(
-        images_directory_path=str(out_dir),
         annotations_path=str(anno_path),
     )
     if coco_bbox_format == "xyxy":
@@ -124,11 +123,15 @@ def _save_voc(dataset: "sv.DetectionDataset", out_dir: Path) -> None:
     _write_voc_imagesets(out_dir, stems)
 
 
-def _write_yolo_yaml(yaml_path: Path, class_names: List[str]) -> None:
+def _write_yolo_yaml(
+    yaml_path: Path, class_names: List[str], train_path: str = "images"
+) -> None:
     """Write data.yaml with quoted class names (matches detcli convention)."""
     deduped = list(dict.fromkeys(class_names))  # preserve order, remove dups
     quoted = ", ".join(f'"{c}"' for c in deduped)
-    yaml_path.write_text(f"nc: {len(deduped)}\nnames: [{quoted}]\n")
+    yaml_path.write_text(
+        f"train: {train_path}\nnc: {len(deduped)}\nnames: [{quoted}]\n"
+    )
 
 
 def _write_voc_imagesets(out_dir: Path, stems: List[str]) -> None:

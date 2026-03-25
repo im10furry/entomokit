@@ -230,8 +230,8 @@ class SegmentationProcessor:
         """
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        cleaned_dir = output_dir / "cleaned_images"
-        cleaned_dir.mkdir(parents=True, exist_ok=True)
+        images_dir = output_dir / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
 
         # Setup repair directory if needed
         if self.repair_strategy in [
@@ -321,7 +321,7 @@ class SegmentationProcessor:
             else:
                 output_name = f"{base_name}_{actual_idx + 1:02d}.{output_format}"
 
-            output_path = output_dir / "cleaned_images" / output_name
+            output_path = output_dir / "images" / output_name
             actual_idx += 1
 
             if is_bbox_mode:
@@ -397,7 +397,7 @@ class SegmentationProcessor:
                 save_image(cropped_rgba, output_path, format=output_format)
 
             # For metadata, use relative path without output_dir prefix
-            # Format: cleaned_images/filename.ext
+            # Format: images/filename.ext
             metadata_filename = Path(output_name).name
 
             logger.debug(f"Saved {output_path}")

@@ -37,6 +37,11 @@ def test_coco_output_filename(tmp_path):
     assert (out_dir / "annotations.coco.json").exists()
 
 
+def test_coco_does_not_copy_source_images(tmp_path):
+    out_dir = _make_dataset_and_write(tmp_path, "coco")
+    assert not (out_dir / "test.jpg").exists()
+
+
 def test_coco_bbox_xywh_format(tmp_path):
     out_dir = _make_dataset_and_write(tmp_path, "coco", coco_bbox_format="xywh")
     data = json.loads((out_dir / "annotations.coco.json").read_text())
@@ -64,6 +69,7 @@ def test_yolo_layout(tmp_path):
 def test_yolo_yaml_quoted_names(tmp_path):
     out_dir = _make_dataset_and_write(tmp_path, "yolo")
     content = (out_dir / "data.yaml").read_text()
+    assert "train: images" in content
     assert 'names: ["insect"]' in content
     assert "nc: 1" in content
 
