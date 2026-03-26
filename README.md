@@ -923,9 +923,9 @@ I need to use entomokit-workflow skill to clean images in data/Epidorcus and tra
 Use entomokit-workflow skill to process data/my_insects: clean images, split dataset, and train a convnextv2_femto classifier.
 ```
 
-**Example 3 - Resume interrupted workflow:**
+**Example 3 - Learning and demo:**
 ```
-I was running entomokit classify train yesterday. Help me continue with evaluation and ONNX export.
+I want to learn entomokit commands through entomokit-workflow skill. Can you give me a teaching demo?
 ```
 
 The AI will guide you through each phase, confirm parameters, and summarize results.
@@ -936,7 +936,6 @@ The AI will guide you through each phase, confirm parameters, and summarize resu
 |---------|-------------|
 | Parameter Validation | Validates all parameters against CLI schema before execution |
 | CSV Teaching | Helps generate and validate `image,label` CSV files |
-| Progress Tracking | Maintains session state for resumable workflows |
 | Error Recovery | Maps errors to repair actions |
 | Demo Mode | Optional teaching flows with repository sample data |
 

@@ -1,6 +1,6 @@
 ---
 name: entomokit-workflow
-description: Conversational workflow orchestrator for EntomoKit from dataset preparation to model training/evaluation/export. Use when users ask to run, plan, troubleshoot, or resume entomokit commands (doctor, clean, segment, synthesize, augment, split-csv, classify), especially for step-by-step guidance, CSV validation, progress recovery, and safe parameter confirmation.
+description: Conversational workflow orchestrator for EntomoKit from dataset preparation to model training/evaluation/export. Use when users ask to run, plan, troubleshoot, or learn entomokit commands (doctor, clean, segment, synthesize, augment, split-csv, classify), especially for step-by-step guidance, CSV validation, teaching demos, and safe parameter confirmation.
 ---
 
 # EntomoKit Workflow

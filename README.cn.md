@@ -923,9 +923,9 @@ cp -r skills/entomokit-workflow ~/.codex/skills/
 使用 entomokit-workflow skill 处理 data/my_insects：清洗图片、划分数据集、训练 convnextv2_femto 分类器。
 ```
 
-**示例 3 - 恢复中断的工作流：**
+**示例 3 - 教学示范：**
 ```
-昨天我在运行 entomokit classify train，帮我继续完成评估和 ONNX 导出。
+我想通过 entomokit-workflow skill 学习下 entomokit 工具的相关命令和操作，可以教学示范吗？
 ```
 
 AI 将引导您完成每个阶段、确认参数并总结结果。
@@ -936,7 +936,6 @@ AI 将引导您完成每个阶段、确认参数并总结结果。
 |---------|-------------|
 | 参数验证 | 执行前根据 CLI schema 验证所有参数 |
 | CSV 教学 | 帮助生成和验证 `image,label` CSV 文件 |
-| 进度跟踪 | 维护会话状态以支持可恢复的工作流 |
 | 错误恢复 | 将错误映射到修复操作 |
 | 演示模式 | 使用仓库示例数据的可选教学流程 |
 
