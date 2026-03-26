@@ -2,7 +2,7 @@
 
 [中文文档](README.cn.md) | **English**
 
-A Python-based toolkit for building insect image datasets. Provides a unified `entomokit` CLI with commands for segmentation, frame extraction, image cleaning, dataset splitting, image synthesis, and AutoGluon image classification.
+A Python-based toolkit for building insect image datasets. Provides a unified `entomokit` CLI with commands for frame extraction, segmentation, synthesis, cleaning, augmentation, dataset splitting, AutoMM classification, and environment diagnostics.
 
 ## Overview
 
@@ -14,17 +14,19 @@ entomokit <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `segment` | Segment insects from images (SAM3, Otsu, GrabCut) |
 | `extract-frames` | Extract frames from video files |
-| `clean` | Clean and deduplicate images |
-| `split-csv` | Split datasets into train/val/test CSVs |
+| `segment` | Segment insects from images (SAM3, Otsu, GrabCut) |
 | `synthesize` | Composite insects onto background images |
-| `classify train` | Train an AutoGluon image classifier |
+| `clean` | Clean and deduplicate images |
+| `augment` | Augment images with presets or custom albumentations policy |
+| `split-csv` | Split datasets into train/val/test CSVs |
+| `classify train` | Train an AutoMM image classifier |
 | `classify predict` | Run inference (AutoGluon or ONNX) |
 | `classify evaluate` | Evaluate model performance |
 | `classify embed` | Extract embeddings + UMAP + quality metrics |
 | `classify cam` | Generate GradCAM heatmaps |
 | `classify export-onnx` | Export model to ONNX format |
+| `doctor` | Diagnose environment and missing dependencies |
 
 ## Features
 
@@ -34,9 +36,11 @@ entomokit <command> [options]
 - **Annotation Output**: COCO JSON, VOC Pascal XML, YOLO TXT
 - **Video Frame Extraction**: Multithreaded extraction with time range support
 - **Image Cleaning**: Resize, deduplicate (MD5/Phash), and standardize image naming; recursive mode
+- **Image Augmentation**: Albumentations-based preset/custom augmentation with deterministic seeds
 - **Dataset Splitting**: Ratio or count-based train/val/test splits with stratification
 - **Image Synthesis**: Advanced compositing with rotation, color matching, and black region avoidance
-- **AutoGluon Classification**: Train, predict, evaluate, embed, GradCAM, and ONNX export
+- **AutoMM Classification**: Train, predict, evaluate, embed, GradCAM, and ONNX export
+- **Environment Diagnostics**: `doctor` command reports missing/outdated dependencies and install suggestions
 - **Embedding Quality Metrics**: NMI, ARI, Recall@K, kNN accuracy, mAP@R, Silhouette, UMAP visualization
 - **Parallel Processing**: Multi-threaded image processing with configurable worker count
 - **Comprehensive Logging**: Detailed logging with verbose mode and log file output
@@ -56,11 +60,14 @@ pip install -e .
 
 ### With Classification Support
 
-For classification commands (AutoGluon, timm, GradCAM, UMAP):
+For classification commands (AutoMM, timm, GradCAM, UMAP):
 
 ```bash
 pip install -e ".[classify]"
 ```
+
+AutoMM official install reference:
+https://auto.gluon.ai/stable/install.html
 
 ### With Segmentation Support
 
@@ -86,10 +93,18 @@ For perceptual hash deduplication:
 pip install -e ".[cleaning]"
 ```
 
+### With Augmentation
+
+For `entomokit augment`:
+
+```bash
+pip install -e ".[augment]"
+```
+
 ### Development Installation
 
 ```bash
-pip install -e ".[dev,classify,segmentation,video,cleaning]"
+pip install -e ".[dev,classify,segmentation,video,cleaning,augment]"
 ```
 
 ## Project Structure
@@ -100,9 +115,11 @@ pip install -e ".[dev,classify,segmentation,video,cleaning]"
 │   ├── main.py             # Entry point dispatcher
 │   ├── segment.py          # entomokit segment
 │   ├── extract_frames.py   # entomokit extract-frames
-│   ├── clean.py            # entomokit clean
-│   ├── split_csv.py        # entomokit split-csv
 │   ├── synthesize.py       # entomokit synthesize
+│   ├── clean.py            # entomokit clean
+│   ├── augment.py          # entomokit augment
+│   ├── split_csv.py        # entomokit split-csv
+│   ├── doctor.py           # entomokit doctor
 │   ├── help_style.py       # Rich help formatting
 │   └── classify/           # entomokit classify *
 │       ├── train.py
@@ -117,8 +134,10 @@ pip install -e ".[dev,classify,segmentation,video,cleaning]"
 │   ├── segmentation.py     # Segmentation domain logic
 │   ├── framing/            # Video framing domain logic
 │   ├── cleaning/           # Image cleaning domain logic
+│   ├── augment/            # Image augmentation domain logic
 │   ├── splitting/          # Dataset splitting domain logic
 │   ├── synthesis/          # Image synthesis domain logic
+│   ├── doctor/             # Environment diagnostics
 │   ├── sam3/               # SAM3 model implementation
 │   └── lama/               # LaMa inpainting implementation
 ├── tests/                  # Test files
@@ -148,9 +167,9 @@ models/big-lama/
 
 Download link: https://github.com/advimman/lama
 
-### AutoGluon / timm (classify commands)
+### AutoMM / timm (classify commands)
 
-Install the `classify` extras — AutoGluon will download backbone weights automatically on first use.
+Install the `classify` extras — AutoMM will download backbone weights automatically on first use.
 
 Supported timm backbones include:
 - `convnextv2_femto` (default, lightweight)
@@ -162,7 +181,17 @@ Supported timm backbones include:
 
 ## Usage
 
-### 1. Segment Command
+Recommended workflow command order:
+
+1. `extract-frames`
+2. `segment`
+3. `synthesize`
+4. `clean`
+5. `augment`
+6. `split-csv`
+7. `classify`
+
+### Segment Command
 
 Segment insects from images using multiple methods (SAM3, Otsu, GrabCut). Optionally generates annotations in COCO, VOC, or YOLO format.
 
@@ -245,7 +274,7 @@ output_dir/
 
 ---
 
-### 2. Extract Frames Command
+### Extract Frames Command
 
 Extract frames from video files. Accepts a directory or a single video file path.
 
@@ -281,7 +310,7 @@ entomokit extract-frames --input-dir videos/ --out-dir frames/ \
 
 ---
 
-### 3. Clean Command
+### Clean Command
 
 Clean and deduplicate images with consistent naming.
 
@@ -316,7 +345,42 @@ entomokit clean --input-dir images/raw/ --out-dir cleaned/ \
 
 ---
 
-### 4. Split-CSV Command
+### Augment Command
+
+Augment images with albumentations presets or a custom policy file.
+
+```bash
+# Light preset (default), one output per input image
+entomokit augment --input-dir images/cleaned/ --out-dir images/augmented/
+
+# Heavy preset and 3 copies per image
+entomokit augment --input-dir images/cleaned/ --out-dir images/augmented/ \
+    --preset heavy --multiply 3 --seed 123
+
+# Custom policy JSON
+entomokit augment --input-dir images/cleaned/ --out-dir images/augmented/ \
+    --policy configs/augment_policy.json
+```
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--input-dir` | Input image directory | Required |
+| `--out-dir` | Output directory | Required |
+| `--preset` | `light`, `medium`, `heavy`, `safe-for-small-dataset` | `light` |
+| `--policy` | Custom policy JSON path (exclusive with `--preset`) | None |
+| `--seed` | Random seed for reproducibility | 42 |
+| `--multiply` | Augmented copies per input image | 1 |
+
+**Output:**
+```
+output_dir/
+├── images/
+└── augment_manifest.json
+```
+
+---
+
+### Split-CSV Command
 
 Split a labelled CSV into train / val / test files.
 
@@ -375,7 +439,7 @@ output_dir/
 
 ---
 
-### 5. Synthesize Command
+### Synthesize Command
 
 Composite target objects onto background images with rotation, color matching, and intelligent positioning.
 
@@ -447,7 +511,7 @@ output_dir/
 
 ---
 
-### 6. Classify Commands
+### Classify Commands
 
 All classification commands require the `classify` extras:
 
@@ -709,6 +773,21 @@ entomokit classify export-onnx \
 
 ---
 
+### Doctor Command
+
+Diagnose environment and dependency readiness.
+
+```bash
+entomokit doctor
+```
+
+The report includes:
+- Python and available devices (`cpu`, `cuda`, `mps`)
+- Key package versions and status (ok/missing/outdated)
+- Install/upgrade recommendations (including `autogluon.multimodal>=1.4.0`)
+
+---
+
 ## Common Behaviours
 
 ### Logging
@@ -741,6 +820,15 @@ entomokit --install-completion
 ```
 
 Supported shells: bash, zsh, fish
+
+### Version
+
+Show installed version:
+
+```bash
+entomokit --version
+entomokit -v
+```
 
 ---
 

@@ -335,6 +335,68 @@ python scripts/extract_frames.py --input_dir videos/ --out_dir frames/ --start_t
 python scripts/extract_frames.py --input_dir videos/ --out_dir frames/ --start_time 10.0
 ```
 
+---
+
+## Additional Changes (2026-03-26) — Doctor/Augment + Workflow Ordering + Version 0.1.4
+
+### Summary
+
+Added `doctor` and `augment` command modules, aligned CLI/README command ordering to the dataset workflow, switched classify dependency guidance to AutoMM (`autogluon.multimodal>=1.4.0`), added top-level `--version/-v`, and bumped package version to `0.1.4`.
+
+### CLI and command modules
+
+- Added `entomokit/augment.py` and augmentation runtime modules under `src/augment/`.
+  - Migrated detcli-style augmentation flow.
+  - Renamed I/O args to entomokit style: `--input-dir`, `--out-dir`.
+  - Added `--multiply` support.
+- Added `entomokit/doctor.py` and diagnostics logic in `src/doctor/service.py`.
+  - Reports Python/device/package status.
+  - Emits install/upgrade recommendations including `autogluon.multimodal>=1.4.0`.
+- Updated top-level command registration order in `entomokit/main.py`:
+  - `extract-frames`, `segment`, `synthesize`, `clean`, `augment`, `split-csv`, `classify`.
+- Added top-level version flags in `entomokit/main.py`:
+  - `--version`, `-v`.
+
+### Dependency and version metadata
+
+- Updated `setup.py`:
+  - Package version: `0.1.3` -> `0.1.4`.
+  - Added `augment` extra with `albumentations>=1.4.0`.
+  - Updated classify extra to `autogluon.multimodal>=1.4.0`.
+- Updated `requirements.txt` with:
+  - `albumentations>=1.4.0`
+  - `autogluon.multimodal>=1.4.0`
+
+### Documentation
+
+- Updated `README.md` and `README.cn.md`:
+  - Added `augment` and `doctor` command docs.
+  - Reorganized command introductions to the requested workflow order.
+  - Added AutoMM install guidance and official link.
+  - Added version usage examples (`entomokit --version`, `entomokit -v`).
+
+### Tests
+
+- Added `tests/test_doctor_augment_cli.py`.
+- Extended `tests/test_main_cli.py` with:
+  - Top-level command order assertion.
+  - `--version` and `-v` behavior checks.
+- Updated `tests/test_package_version.py` to assert `0.1.4`.
+
+### Verification
+
+Executed and passed:
+
+```bash
+pytest tests/test_main_cli.py tests/test_doctor_augment_cli.py tests/test_package_version.py -q
+pytest tests/test_cli_help_texts.py tests/test_classify_predict_cli.py tests/test_classify_trainer.py -q
+python -m entomokit.main -h
+python -m entomokit.main doctor
+python -m entomokit.main augment --help
+python -m entomokit.main --version
+python -m entomokit.main -v
+```
+
 ### Changes to src/framing/extractor.py
 
 **Updated `__init__()` method:**

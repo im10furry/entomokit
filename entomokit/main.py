@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import os
 import sys
 from pathlib import Path
@@ -88,8 +89,8 @@ def _build_parser() -> argparse.ArgumentParser:
     description = with_examples(
         "A toolkit for building insect image datasets.",
         [
-            "entomokit segment --input-dir ./images --out-dir ./out",
             "entomokit extract-frames --input-dir ./video.mp4 --out-dir ./frames",
+            "entomokit segment --input-dir ./images --out-dir ./out",
             "entomokit classify train --train-csv train.csv --images-dir ./images --out-dir ./model",
         ],
     )
@@ -99,6 +100,13 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=RichHelpFormatter,
     )
     style_parser(parser)
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"%(prog)s {_get_version()}",
+        help="Show entomokit version and exit.",
+    )
     parser.add_argument(
         "--install-completion",
         action="store_true",
@@ -112,21 +120,39 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers.required = False
     # Lazy imports keep startup fast and avoid heavy optional deps at import time
-    from entomokit import segment as _segment
     from entomokit import extract_frames as _extract_frames
-    from entomokit import clean as _clean
-    from entomokit import split_csv as _split_csv
+    from entomokit import segment as _segment
     from entomokit import synthesize as _synthesize
+    from entomokit import clean as _clean
+    from entomokit import augment as _augment
+    from entomokit import split_csv as _split_csv
+    from entomokit import doctor as _doctor
     from entomokit.classify import register as _register_classify
 
-    _segment.register(subparsers)
     _extract_frames.register(subparsers)
-    _clean.register(subparsers)
-    _split_csv.register(subparsers)
+    _segment.register(subparsers)
     _synthesize.register(subparsers)
+    _clean.register(subparsers)
+    _augment.register(subparsers)
+    _split_csv.register(subparsers)
     _register_classify(subparsers)
+    _doctor.register(subparsers)
 
     return parser
+
+
+def _get_version() -> str:
+    try:
+        from entomokit._version import __version__
+
+        return __version__
+    except ImportError:
+        pass
+
+    try:
+        return importlib.metadata.version("entomokit")
+    except importlib.metadata.PackageNotFoundError:
+        return "0.1.4"
 
 
 def _activate_argcomplete(parser: argparse.ArgumentParser) -> None:

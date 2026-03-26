@@ -2,7 +2,7 @@
 
 **中文** | [English](README.md)
 
-一个基于 Python 的昆虫图像数据集构建工具包。提供统一的 `entomokit` 命令行工具，支持图像分割、视频抽帧、图像清洗、数据集划分、图像合成以及 AutoGluon 图像分类等功能。
+一个基于 Python 的昆虫图像数据集构建工具包。提供统一的 `entomokit` 命令行工具，支持视频抽帧、图像分割、图像合成、图像清洗、图像增强、数据集划分、AutoMM 图像分类以及环境诊断等功能。
 
 ## 概述
 
@@ -14,17 +14,19 @@ entomokit <command> [options]
 
 | 命令 | 描述 |
 |---------|-------------|
-| `segment` | 从图像中分割昆虫（SAM3、Otsu、GrabCut） |
 | `extract-frames` | 从视频文件中提取帧 |
-| `clean` | 清洗和去重图像 |
-| `split-csv` | 将数据集划分为 train/val/test CSV 文件 |
+| `segment` | 从图像中分割昆虫（SAM3、Otsu、GrabCut） |
 | `synthesize` | 将昆虫合成到背景图像上 |
-| `classify train` | 训练 AutoGluon 图像分类器 |
-| `classify predict` | 运行推理（AutoGluon 或 ONNX） |
+| `clean` | 清洗和去重图像 |
+| `augment` | 使用预设或自定义 albumentations 策略进行图像增强 |
+| `split-csv` | 将数据集划分为 train/val/test CSV 文件 |
+| `classify train` | 训练 AutoMM 图像分类器 |
+| `classify predict` | 运行推理（AutoMM 或 ONNX） |
 | `classify evaluate` | 评估模型性能 |
 | `classify embed` | 提取嵌入向量 + UMAP + 质量指标 |
 | `classify cam` | 生成 GradCAM 热力图 |
 | `classify export-onnx` | 导出模型为 ONNX 格式 |
+| `doctor` | 诊断环境与缺失依赖 |
 
 ## 功能特性
 
@@ -34,9 +36,11 @@ entomokit <command> [options]
 - **标注输出**：COCO JSON、VOC Pascal XML、YOLO TXT
 - **视频抽帧**：多线程提取，支持时间范围设定
 - **图像清洗**：调整大小、去重（MD5/Phash）、规范化命名；支持递归模式
+- **图像增强**：基于 albumentations 的预设/自定义增强，支持确定性随机种子
 - **数据集划分**：基于比例或数量的 train/val/test 划分，支持分层采样
 - **图像合成**：高级合成功能，支持旋转、颜色匹配、黑区规避
-- **AutoGluon 分类**：训练、预测、评估、嵌入、GradCAM、ONNX 导出
+- **AutoMM 分类**：训练、预测、评估、嵌入、GradCAM、ONNX 导出
+- **环境诊断**：`doctor` 命令输出依赖状态并给出安装/升级建议
 - **嵌入质量指标**：NMI、ARI、Recall@K、kNN 准确率、mAP@R、轮廓系数、UMAP 可视化
 - **并行处理**：多线程图像处理，可配置工作线程数
 - **完整日志**：详细日志记录，支持详细模式和日志文件输出
@@ -56,11 +60,14 @@ pip install -e .
 
 ### 安装分类功能支持
 
-用于分类命令（AutoGluon、timm、GradCAM、UMAP）：
+用于分类命令（AutoMM、timm、GradCAM、UMAP）：
 
 ```bash
 pip install -e ".[classify]"
 ```
+
+AutoMM 官方安装参考：
+https://auto.gluon.ai/stable/install.html
 
 ### 安装分割功能支持
 
@@ -86,10 +93,18 @@ pip install -e ".[video]"
 pip install -e ".[cleaning]"
 ```
 
+### 安装图像增强支持
+
+用于 `entomokit augment`：
+
+```bash
+pip install -e ".[augment]"
+```
+
 ### 开发环境安装
 
 ```bash
-pip install -e ".[dev,classify,segmentation,video,cleaning]"
+pip install -e ".[dev,classify,segmentation,video,cleaning,augment]"
 ```
 
 ## 项目结构
@@ -98,11 +113,13 @@ pip install -e ".[dev,classify,segmentation,video,cleaning]"
 .
 ├── entomokit/              # 统一命令行包
 │   ├── main.py             # 入口点调度器
-│   ├── segment.py          # entomokit segment
 │   ├── extract_frames.py   # entomokit extract-frames
-│   ├── clean.py            # entomokit clean
-│   ├── split_csv.py        # entomokit split-csv
+│   ├── segment.py          # entomokit segment
 │   ├── synthesize.py       # entomokit synthesize
+│   ├── clean.py            # entomokit clean
+│   ├── augment.py          # entomokit augment
+│   ├── split_csv.py        # entomokit split-csv
+│   ├── doctor.py           # entomokit doctor
 │   ├── help_style.py       # Rich 帮助格式化
 │   └── classify/           # entomokit classify *
 │       ├── train.py
@@ -113,12 +130,14 @@ pip install -e ".[dev,classify,segmentation,video,cleaning]"
 │       └── export_onnx.py
 ├── src/
 │   ├── common/             # 共享工具（CLI、annotation_writer、logging、validators）
-│   ├── classification/     # AutoGluon 分类逻辑
+│   ├── classification/     # AutoMM 分类逻辑
 │   ├── segmentation.py     # 分割领域逻辑
 │   ├── framing/            # 视频帧提取领域逻辑
 │   ├── cleaning/           # 图像清洗领域逻辑
+│   ├── augment/            # 图像增强领域逻辑
 │   ├── splitting/          # 数据集划分领域逻辑
 │   ├── synthesis/          # 图像合成领域逻辑
+│   ├── doctor/             # 环境诊断
 │   ├── sam3/               # SAM3 模型实现
 │   └── lama/               # LaMa 修复实现
 ├── tests/                  # 测试文件
@@ -148,9 +167,9 @@ models/big-lama/
 
 下载链接：https://github.com/advimman/lama
 
-### AutoGluon / timm（classify 命令）
+### AutoMM / timm（classify 命令）
 
-安装 `classify` 扩展 — AutoGluon 会在首次使用时自动下载骨干网络权重。
+安装 `classify` 扩展 — AutoMM 会在首次使用时自动下载骨干网络权重。
 
 支持的 timm 骨干网络包括：
 - `convnextv2_femto`（默认，轻量级）
@@ -162,7 +181,17 @@ models/big-lama/
 
 ## 使用方法
 
-### 1. segment 命令
+推荐的工作流命令顺序：
+
+1. `extract-frames`
+2. `segment`
+3. `synthesize`
+4. `clean`
+5. `augment`
+6. `split-csv`
+7. `classify`
+
+### segment 命令
 
 使用多种方法（SAM3、Otsu、GrabCut）从图像中分割昆虫。可选择生成 COCO、VOC 或 YOLO 格式的标注。
 
@@ -245,7 +274,7 @@ output_dir/
 
 ---
 
-### 2. extract-frames 命令
+### extract-frames 命令
 
 从视频文件中提取帧。支持目录或单个视频文件路径。
 
@@ -281,7 +310,7 @@ entomokit extract-frames --input-dir videos/ --out-dir frames/ \
 
 ---
 
-### 3. clean 命令
+### clean 命令
 
 清洗和去重图像，规范化命名。
 
@@ -316,7 +345,42 @@ entomokit clean --input-dir images/raw/ --out-dir cleaned/ \
 
 ---
 
-### 4. split-csv 命令
+### augment 命令
+
+使用 albumentations 预设或自定义策略对图像进行增强。
+
+```bash
+# 默认 light 预设，每张输入图生成 1 张增强图
+entomokit augment --input-dir images/cleaned/ --out-dir images/augmented/
+
+# heavy 预设，每张输入图生成 3 张增强图
+entomokit augment --input-dir images/cleaned/ --out-dir images/augmented/ \
+    --preset heavy --multiply 3 --seed 123
+
+# 使用自定义策略 JSON
+entomokit augment --input-dir images/cleaned/ --out-dir images/augmented/ \
+    --policy configs/augment_policy.json
+```
+
+| 参数 | 描述 | 默认值 |
+|-----------|-------------|---------|
+| `--input-dir` | 输入图像目录 | 必填 |
+| `--out-dir` | 输出目录 | 必填 |
+| `--preset` | `light`、`medium`、`heavy`、`safe-for-small-dataset` | `light` |
+| `--policy` | 自定义策略 JSON 路径（与 `--preset` 互斥） | 无 |
+| `--seed` | 随机种子 | 42 |
+| `--multiply` | 每张输入图生成的增强副本数量 | 1 |
+
+**输出：**
+```
+output_dir/
+├── images/
+└── augment_manifest.json
+```
+
+---
+
+### split-csv 命令
 
 将标注 CSV 划分为 train / val / test 文件。
 
@@ -375,7 +439,7 @@ output_dir/
 
 ---
 
-### 5. synthesize 命令
+### synthesize 命令
 
 将目标对象合成到背景图像上，支持旋转、颜色匹配和智能定位。
 
@@ -447,7 +511,7 @@ output_dir/
 
 ---
 
-### 6. classify 命令组
+### classify 命令组
 
 所有分类命令需要安装 `classify` 扩展：
 
@@ -457,7 +521,7 @@ pip install -e ".[classify]"
 
 #### `classify train`
 
-使用 AutoGluon MultiModalPredictor 训练图像分类器。
+使用 AutoMM MultiModalPredictor 训练图像分类器。
 
 ```bash
 entomokit classify train \
@@ -514,9 +578,9 @@ entomokit classify train \
 | `--max-epochs` | 最大训练轮数 | 50 |
 | `--time-limit` | 时间限制（小时） | 1.0 |
 | `--resume` | 从检查点继续 | 否 |
-| `--learning-rate` | AutoGluon `optim.lr` | `1e-4` |
-| `--weight-decay` | AutoGluon `optim.weight_decay` | `1e-3` |
-| `--warmup-steps` | AutoGluon `optim.warmup_steps` | `0.1` |
+| `--learning-rate` | AutoMM `optim.lr` | `1e-4` |
+| `--weight-decay` | AutoMM `optim.weight_decay` | `1e-3` |
+| `--warmup-steps` | AutoMM `optim.warmup_steps` | `0.1` |
 | `--patience` | 早停耐心值 | 10 |
 | `--top-k` | 检查点平均数量 | 3 |
 | `--focal-loss` | 启用 focal loss | 否 |
@@ -536,10 +600,10 @@ entomokit classify train \
 
 #### `classify predict`
 
-使用 AutoGluon 或 ONNX 模型对图像进行推理。
+使用 AutoMM 或 ONNX 模型对图像进行推理。
 
 ```bash
-# AutoGluon 模型
+# AutoMM 模型
 entomokit classify predict \
     --images-dir data/test/ \
     --model-dir runs/exp1/AutogluonModels/convnextv2_femto \
@@ -612,7 +676,7 @@ entomokit classify embed \
     --visualize \
     --out-dir runs/embed/
 
-# 微调后的 AutoGluon 骨干网络
+# 微调后的 AutoMM 骨干网络
 entomokit classify embed \
     --images-dir data/images/ \
     --model-dir runs/exp1/AutogluonModels/convnextv2_femto \
@@ -686,7 +750,7 @@ entomokit classify cam \
 
 #### `classify export-onnx`
 
-将 AutoGluon 模型导出为 ONNX 格式用于部署。
+将 AutoMM 模型导出为 ONNX 格式用于部署。
 
 ```bash
 entomokit classify export-onnx \
@@ -706,6 +770,21 @@ entomokit classify export-onnx \
 **输出**：
 - `model.onnx` — ONNX 模型文件
 - `label_classes.json` — 类别标签映射
+
+---
+
+### doctor 命令
+
+诊断环境与依赖是否满足当前功能需求。
+
+```bash
+entomokit doctor
+```
+
+报告内容包括：
+- Python 版本与可用设备（`cpu`、`cuda`、`mps`）
+- 关键依赖的版本与状态（ok/missing/outdated）
+- 安装/升级建议（包含 `autogluon.multimodal>=1.4.0`）
 
 ---
 
@@ -741,6 +820,15 @@ entomokit --install-completion
 ```
 
 支持的 shell：bash、zsh、fish
+
+### 版本号
+
+查看已安装版本：
+
+```bash
+entomokit --version
+entomokit -v
+```
 
 ---
 

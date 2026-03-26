@@ -132,3 +132,55 @@ def test_main_enables_argcomplete(monkeypatch: pytest.MonkeyPatch) -> None:
         cli_main.main(["--help"])
 
     assert called["value"] is True
+
+
+def test_top_level_command_order_matches_dataset_workflow() -> None:
+    """Top-level commands should follow dataset preparation workflow order."""
+    import argparse
+
+    from entomokit.main import _build_parser
+
+    parser = _build_parser()
+    commands: list[str] = []
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            commands = list(action.choices.keys())
+            break
+
+    assert commands[:7] == [
+        "extract-frames",
+        "segment",
+        "synthesize",
+        "clean",
+        "augment",
+        "split-csv",
+        "classify",
+    ]
+
+
+def test_version_flag_prints_package_version_long(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--version should print version and exit 0."""
+    from entomokit.main import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--version"])
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert out.strip() == "entomokit 0.1.4"
+
+
+def test_version_flag_prints_package_version_short(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """-v should print version and exit 0 at top-level."""
+    from entomokit.main import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(["-v"])
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert out.strip() == "entomokit 0.1.4"

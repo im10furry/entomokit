@@ -19,5 +19,11 @@ pandas
 # Image synthesis (synthesize.py) - uses skimage for color matching
 scikit-image
 
+# Image augmentation (augment.py)
+albumentations>=1.4.0
+
 # ONNX inference/export for classify --onnx-model
 onnxruntime
+
+# AutoMM classification (classify.py)
+autogluon.multimodal>=1.4.0
